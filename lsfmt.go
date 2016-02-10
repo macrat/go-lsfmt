@@ -51,7 +51,12 @@ func NewFormatterFile(file *os.File) (formatter Formatter, err error) {
 }
 
 func (this Formatter) CalcColumns(items []string, vertical bool) (columns []int, err error) {
-	cands := make([][]int, this.width/this.space)
+	var cands [][]int
+	if this.width/this.space > len(items) {
+		cands = make([][]int, len(items))
+	} else {
+		cands = make([][]int, this.width/this.space)
+	}
 	for i, _ := range cands {
 		cands[i] = make([]int, i+1)
 	}
@@ -120,7 +125,10 @@ func (this Formatter) PrintVertical(items []string) (columns []int, err error) {
 		return nil, err
 	}
 
-	height := int(math.Ceil(float64(len(items)) / float64(len(columns))))
+	height := 1
+	if len(columns) < len(items) {
+		height = int(math.Ceil(float64(len(items)) / float64(len(columns))))
+	}
 
 	for r := 0; r < height; r++ {
 		for c, _ := range columns {
