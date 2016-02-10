@@ -7,6 +7,7 @@ package lsfmt
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 
@@ -49,56 +50,91 @@ func NewFormatterFile(file *os.File) (formatter Formatter, err error) {
 	return
 }
 
-func (this Formatter) Print(items []string) (columns int, err error) {
-	var cands [][]int
-	for i := 0; i < this.width/this.space; i++ {
-		cands = append(cands, *new([]int))
+func (this Formatter) CalcColumns(items []string, vertical bool) (columns []int, err error) {
+	cands := make([][]int, this.width/this.space)
+	for i, _ := range cands {
+		cands[i] = make([]int, i+1)
 	}
 
-	for i := 0; i < len(items); i++ {
-		for c := 0; c < len(cands); c++ {
-			idx := i % (c + 1)
-
-			w := stringWidth(items[i])
-			if idx < c {
-				w += this.space
+	for i, _ := range items {
+		for c, _ := range cands {
+			var idx int
+			if vertical {
+				idx = i * (c + 1) / len(items)
+			} else {
+				idx = i % (c + 1)
 			}
 
-			if len(cands[c]) <= idx {
-				cands[c] = append(cands[c], w)
-			} else if cands[c][idx] < w {
+			w := stringWidth(items[i]) + this.space
+			if cands[c][idx] < w {
 				cands[c][idx] = w
 			}
 
-			if sum(cands[c][:]) > this.width {
+			if sum(cands[c])-this.space > this.width {
 				cands = cands[:c]
 				break
 			}
 		}
 	}
 
-	columns = len(cands)
-
-	if columns == 0 {
+	if len(cands) == 0 {
 		longest := 0
 		for _, s := range items {
 			if longest < len(s) {
 				longest = len(s)
 			}
 		}
-		err = fmt.Errorf("terminal too narrow. this terminal has %d columns but longest string is %d characters.", this.width, longest)
-		return
+		return nil, fmt.Errorf("terminal too narrow. this terminal has %d columns but longest string is %d characters.", this.width, longest)
 	}
 
-	for i := 0; i < len(items); i++ {
+	columns = cands[len(cands)-1]
+	columns[len(columns)-1] -= this.space
+	return
+}
+
+func (this Formatter) PrintHorizontal(items []string) (columns []int, err error) {
+	columns, err = this.CalcColumns(items, false)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, _ := range items {
 		fmt.Fprint(this.out, items[i])
-		if i%columns == columns-1 {
+		if i%len(columns) == len(columns)-1 {
 			fmt.Fprintln(this.out)
 		} else if i != len(items)-1 {
-			fmt.Fprint(this.out, strings.Repeat(" ", cands[len(cands)-1][i%columns]-stringWidth(items[i])))
+			space := columns[i%len(columns)] - stringWidth(items[i])
+			fmt.Fprint(this.out, strings.Repeat(" ", space))
 		}
 	}
-	if (len(items)-1)%columns != columns-1 {
+	if (len(items)-1)%len(columns) != len(columns)-1 {
+		fmt.Fprintln(this.out)
+	}
+
+	return
+}
+
+func (this Formatter) PrintVertical(items []string) (columns []int, err error) {
+	columns, err = this.CalcColumns(items, true)
+	if err != nil {
+		return nil, err
+	}
+
+	height := int(math.Ceil(float64(len(items)) / float64(len(columns))))
+
+	for r := 0; r < height; r++ {
+		for c, _ := range columns {
+			i := r + c*height
+			if i >= len(items) {
+				break
+			} else {
+				fmt.Fprint(this.out, items[i])
+				if i+height < len(items) {
+					space := columns[c] - stringWidth(items[i])
+					fmt.Fprint(this.out, strings.Repeat(" ", space))
+				}
+			}
+		}
 		fmt.Fprintln(this.out)
 	}
 
