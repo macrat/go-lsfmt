@@ -65,7 +65,11 @@ func (this Formatter) CalcColumns(items []int, vertical bool) (columns []int, er
 		for c, _ := range cands {
 			var idx int
 			if vertical {
-				idx = i * (c + 1) / len(items)
+				height := 1
+				if c+1 < len(items) {
+					height = int(math.Ceil(float64(len(items)) / float64(c+1)))
+				}
+				idx = i / height
 			} else {
 				idx = i % (c + 1)
 			}
@@ -82,19 +86,21 @@ func (this Formatter) CalcColumns(items []int, vertical bool) (columns []int, er
 		}
 	}
 
-	if len(cands) == 0 {
-		longest := 0
-		for _, s := range items {
-			if longest < s {
-				longest = s
-			}
+	for i := len(cands) - 1; i >= 0; i-- {
+		if cands[i][i] > 0 {
+			columns = cands[i]
+			columns[len(columns)-1] -= this.space
+			return
 		}
-		return nil, fmt.Errorf("terminal too narrow. this terminal has %d columns but longest string is %d characters.", this.width, longest)
 	}
 
-	columns = cands[len(cands)-1]
-	columns[len(columns)-1] -= this.space
-	return
+	longest := 0
+	for _, s := range items {
+		if longest < s {
+			longest = s
+		}
+	}
+	return nil, fmt.Errorf("terminal too narrow. this terminal has %d columns but longest string is %d characters.", this.width, longest)
 }
 
 func (this Formatter) PrintHorizontalWithLength(items []string, sizes []int) (columns []int, err error) {
