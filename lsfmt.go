@@ -50,7 +50,7 @@ func NewFormatterFile(file *os.File) (formatter Formatter, err error) {
 	return
 }
 
-func (this Formatter) CalcColumns(items []string, vertical bool) (columns []int, err error) {
+func (this Formatter) CalcColumns(items []int, vertical bool) (columns []int, err error) {
 	var cands [][]int
 	if this.width/this.space > len(items) {
 		cands = make([][]int, len(items))
@@ -70,7 +70,7 @@ func (this Formatter) CalcColumns(items []string, vertical bool) (columns []int,
 				idx = i % (c + 1)
 			}
 
-			w := stringWidth(items[i]) + this.space
+			w := items[i] + this.space
 			if cands[c][idx] < w {
 				cands[c][idx] = w
 			}
@@ -85,8 +85,8 @@ func (this Formatter) CalcColumns(items []string, vertical bool) (columns []int,
 	if len(cands) == 0 {
 		longest := 0
 		for _, s := range items {
-			if longest < len(s) {
-				longest = len(s)
+			if longest < s {
+				longest = s
 			}
 		}
 		return nil, fmt.Errorf("terminal too narrow. this terminal has %d columns but longest string is %d characters.", this.width, longest)
@@ -97,8 +97,8 @@ func (this Formatter) CalcColumns(items []string, vertical bool) (columns []int,
 	return
 }
 
-func (this Formatter) PrintHorizontal(items []string) (columns []int, err error) {
-	columns, err = this.CalcColumns(items, false)
+func (this Formatter) PrintHorizontalWithLength(items []string, sizes []int) (columns []int, err error) {
+	columns, err = this.CalcColumns(sizes, false)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (this Formatter) PrintHorizontal(items []string) (columns []int, err error)
 		if i%len(columns) == len(columns)-1 {
 			fmt.Fprintln(this.out)
 		} else if i != len(items)-1 {
-			space := columns[i%len(columns)] - stringWidth(items[i])
+			space := columns[i%len(columns)] - sizes[i]
 			fmt.Fprint(this.out, strings.Repeat(" ", space))
 		}
 	}
@@ -119,8 +119,16 @@ func (this Formatter) PrintHorizontal(items []string) (columns []int, err error)
 	return
 }
 
-func (this Formatter) PrintVertical(items []string) (columns []int, err error) {
-	columns, err = this.CalcColumns(items, true)
+func (this Formatter) PrintHorizontal(items []string) (columns []int, err error) {
+	var sizes []int
+	for _, x := range items {
+		sizes = append(sizes, stringWidth(x))
+	}
+	return this.PrintHorizontalWithLength(items, sizes)
+}
+
+func (this Formatter) PrintVerticalWithLength(items []string, sizes []int) (columns []int, err error) {
+	columns, err = this.CalcColumns(sizes, true)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +146,7 @@ func (this Formatter) PrintVertical(items []string) (columns []int, err error) {
 			} else {
 				fmt.Fprint(this.out, items[i])
 				if i+height < len(items) {
-					space := columns[c] - stringWidth(items[i])
+					space := columns[c] - sizes[i]
 					fmt.Fprint(this.out, strings.Repeat(" ", space))
 				}
 			}
@@ -147,4 +155,12 @@ func (this Formatter) PrintVertical(items []string) (columns []int, err error) {
 	}
 
 	return
+}
+
+func (this Formatter) PrintVertical(items []string) (columns []int, err error) {
+	var sizes []int
+	for _, x := range items {
+		sizes = append(sizes, stringWidth(x))
+	}
+	return this.PrintVerticalWithLength(items, sizes)
 }
